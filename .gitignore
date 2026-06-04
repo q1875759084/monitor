@@ -1,0 +1,9 @@
+# 构建产物
+dist/
+
+# 依赖
+node_modules/
+
+# yalc 本地联调产物（不应提交到仓库）
+.yalc/
+yalc.lock
