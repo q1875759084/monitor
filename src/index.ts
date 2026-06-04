@@ -2,7 +2,6 @@ import { initReporter, flushImmediate } from './reporter'
 import { initPerf } from './perf'
 import type { MonitorConfig } from './types'
 
-// export { trackEvent } from './track'  // track.ts 实现后取消注释
 export type { MonitorConfig, MonitorEvent, MonitorEventType } from './types'
 
 /**

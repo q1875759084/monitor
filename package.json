@@ -2,13 +2,13 @@
   "name": "@q1875759084/monitor",
   "version": "0.1.0",
   "description": "A lightweight frontend monitoring SDK for performance, error tracking, and user behavior",
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
     }
   },
   "files": [
