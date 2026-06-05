@@ -2,7 +2,7 @@ import { initReporter, flushImmediate } from './reporter'
 import { initPerf } from './perf'
 import type { MonitorConfig } from './types'
 
-export type { MonitorConfig, MonitorEvent, MonitorEventType } from './types'
+export type { MonitorConfig, MonitorEvent, MonitorEventType, MonitorEnv } from './types'
 
 /**
  * 初始化监控 SDK，放在应用入口调用一次

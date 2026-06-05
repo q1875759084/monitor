@@ -372,3 +372,115 @@ npm install
 ```
 
 `.yalc/` 目录和 `yalc.lock` 文件需要加入 `.gitignore`，不应提交到仓库。
+
+---
+
+## 监控 SDK 的多环境上报设计
+
+### 三层概念容易混淆
+
+接入监控 SDK 时，涉及三个看起来相似、实则完全独立的概念：
+
+| 层 | 变量 | 回答的问题 | 谁维护 |
+|---|---|---|---|
+| 部署环境标识 | `DEPLOY_ENV` | 代码跑在哪台服务器 | CI/CD 平台构建时注入 |
+| SDK 上报行为 | `MonitorEnv` | 要不要上报 | SDK 内部判断 |
+| 上报目标地址 | `reportUrl` | 数据写到哪个库 | 业务薄封装（`utils/monitor.ts`）配置 |
+
+三层正交，互不干扰。
+
+---
+
+### DEPLOY_ENV：真实的部署环境
+
+由 CI/CD 在构建时通过 webpack `DefinePlugin` 注入，业务代码通过 `__DEPLOY_ENV__` 读取：
+
+```
+dev         → 本地开发机（npm run dev，未注入时的默认值）
+test        → 测试服务器，QA 验功能
+production  → 生产服务器，真实用户访问
+```
+
+这是**业务概念**，SDK 不认识它，也不应该认识它。
+
+---
+
+### MonitorEnv：SDK 的上报行为开关
+
+SDK 里的 `MonitorEnv = 'development' | 'staging' | 'production'`，**不是环境的名字，是上报行为的分类**，实际只有两档：
+
+```
+'development'  →  不上报（本地开发，噪音多，没有意义）
+'staging'      →  正常上报
+'production'   →  正常上报（行为与 staging 完全一致）
+```
+
+`staging` 和 `production` 的上报行为在当前 SDK 实现中**没有任何差别**，都走正常上报逻辑。SDK 提供两个值是为了语义区分，方便调用方表达「我在测试环境」还是「我在生产环境」，为将来可能的差异化处理预留扩展点（比如生产环境采样率降低）。
+
+这就是为什么 `test`、`beta` 等业务环境都可以映射到 `'staging'`——它们的上报需求相同（正常上报），SDK 不需要知道具体叫什么名字。
+
+```ts
+// utils/monitor.ts 中的映射
+const ENV_MAP: Record<string, MonitorEnv> = {
+  dev:        'development',  // 不上报
+  test:       'staging',      // 正常上报
+  production: 'production',   // 正常上报
+  // 未来新增 beta 环境：加一行即可，SDK 不需要动
+  // beta:    'staging',
+};
+```
+
+---
+
+### reportUrl：数据隔离的真正手段
+
+数据隔离**不靠 MonitorEnv 区分，靠 reportUrl 指向不同的服务器实例**。
+
+monitor-backend 使用 SQLite（进程内嵌入式数据库），数据库文件跟随 Node.js 进程走。不同服务器上各自运行一个 monitor-backend 实例，物理上就是两个独立的 `.sqlite3` 文件，天然隔离，无需额外配置。
+
+```
+test 服务器
+  nginx: /monitor/collect → localhost:3100（test 的 monitor-backend）
+                                └── test.sqlite3
+
+production 服务器
+  nginx: /monitor/collect → localhost:3100（production 的 monitor-backend）
+                                └── production.sqlite3
+```
+
+前端的 `reportUrl` 路径可以完全一致（都是 `/monitor/collect`），靠**不同域名/服务器**区分打到哪个实例，后端本身不感知环境差异。
+
+---
+
+### 完整数据流
+
+```
+本地开发
+  DEPLOY_ENV=dev
+    → MonitorEnv='development' → 不上报，console 打印
+    → reportUrl 无意义（不会发请求）
+
+测试服务器
+  DEPLOY_ENV=test
+    → MonitorEnv='staging'    → 正常上报
+    → reportUrl='/monitor/collect' → test 服务器 nginx → test 的 monitor-backend → test.sqlite3
+
+生产服务器
+  DEPLOY_ENV=production
+    → MonitorEnv='production' → 正常上报
+    → reportUrl='/monitor/collect' → production 服务器 nginx → production 的 monitor-backend → production.sqlite3
+```
+
+---
+
+### 与 MySQL 等独立数据库的对比
+
+SQLite 是进程内嵌入式数据库，数据文件跟随进程，不是独立的数据库服务。
+
+| | SQLite | MySQL/PostgreSQL |
+|---|---|---|
+| 进程模型 | 嵌入在应用进程里 | 独立服务进程 |
+| 多环境隔离 | 天然隔离（不同服务器→不同文件） | 需要手动建不同 database/schema |
+| 数据持久化 | Docker Volume 挂载文件 | 连接独立数据库服务 |
+
+使用 SQLite 的项目，只要部署在不同服务器/容器上，数据隔离就自动成立，省去了 MySQL 方案中手动管理多个 database 的步骤。
