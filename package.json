@@ -1,5 +1,5 @@
 {
-  "name": "@q1875759084/monitor",
+  "name": "@cmjndy/monitor",
   "version": "0.1.0",
   "description": "A lightweight frontend monitoring SDK for performance, error tracking, and user behavior",
   "main": "dist/index.js",
@@ -12,7 +12,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsup",
@@ -34,10 +36,12 @@
   ],
   "author": "q1875759084",
   "license": "MIT",
+  "dependencies": {
+    "web-vitals": "4.2.4"
+  },
   "devDependencies": {
     "@types/node": "^18.0.0",
     "tsup": "^8.5.1",
-    "typescript": "^5.0.0",
-    "web-vitals": "4.2.4"
+    "typescript": "^5.0.0"
   }
 }
